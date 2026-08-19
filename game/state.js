@@ -311,6 +311,18 @@ export function act(state, seat, action) {
       return ok(events);
     }
 
+    case 'vacate': {
+      // Leaving outside a live game frees the seat (mid-game leaving is the
+      // shell's forfeit path). Remaining player drops back to un-ready.
+      if (state.phase !== 'LOBBY' && state.phase !== 'GAMEOVER') return err('Leave mid-game is a forfeit.');
+      if (!state.seats[seat]) return err('No seat.');
+      state.seats[seat] = null;
+      const other = state.seats[1 - seat];
+      if (other) other.ready = false;
+      if (state.phase === 'GAMEOVER') state.rematch = [false, false];
+      return ok([{ t: 'update' }]);
+    }
+
     case 'forfeit': {
       // Shell-initiated: leave mid-battle, or claim-victory after grace.
       if (state.phase !== 'PLACEMENT' && state.phase !== 'AIM') return err('No live game.');
