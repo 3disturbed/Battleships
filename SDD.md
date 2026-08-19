@@ -81,8 +81,10 @@ choices instead of passively dying.
 3. Repeat. First fleet fully sunk loses.
 
 **Mutual destruction:** if both fleets die in the same resolve, the winner is
-the player with more total hits landed; if tied, the game is a genuine draw
-with a full-screen "MUTUAL DESTRUCTION" moment — rare and screenshot-worthy.
+the player who fired *fewer shells* to do it (efficiency tiebreak — hit totals
+are always equal when both fleets are fully sunk); if tied, the game is a
+genuine draw with a full-screen "MUTUAL DESTRUCTION" moment — rare and
+screenshot-worthy.
 
 **Forfeit rules:** 3 consecutive fully-auto-scattered volleys (no player input)
 = forfeit. Disconnection beyond the reconnect grace period (§6.4) = forfeit,

@@ -1,0 +1,20 @@
+{
+  "name": "battleships",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Lobbied link-to-join multiplayer Battleships — Blitz simultaneous volleys, ship abilities, comeback Energy.",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js",
+    "check": "npm run check:syntax && npm run check:unit",
+    "check:syntax": "node tools/syntax.js",
+    "check:unit": "node --test tests/*.test.js",
+    "check:smoke": "node tools/smoke.js"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "jsdom": "^24.1.0"
+  }
+}
