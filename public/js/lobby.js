@@ -1,6 +1,6 @@
 // Lobby screen: share link, seats, host settings, ready-up.
 
-import { sfx } from './sfx.js';
+import { sfx } from './sfx.js?v=2';
 
 export function createLobby({ els, send, toast }) {
   // els: shareLink, shareBtn, seats, settings, settingsHint, readyBtn

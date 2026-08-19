@@ -1,7 +1,7 @@
 // Battle screen: aim input, ability targeting, and the resolve choreography
 // that turns one server `resolve` message into a synchronized barrage.
 
-import { sfx } from './sfx.js';
+import { sfx } from './sfx.js?v=2';
 
 const ABILITY_DEFS = [
   { kind: 'recon', ship: 'carrier', icon: '🛩️', name: 'RECON', cost: 5, targets: 'theirs', hint: 'Tap enemy waters to overfly a 3×3 area' },
@@ -31,8 +31,34 @@ export function createBattle({ boards, els, send, showBanner }) {
   let targeting = null; // ability def awaiting a board tap
   let aimDebounce = 0;
   let animating = false;
+  let activeTab = 'theirs'; // 'theirs' (my shots) | 'mine' (my ships)
+  let autoKey = ''; // last phase/round/turn we auto-switched the tab for
 
   const key = (c) => `${c.x},${c.y}`;
+
+  // ---- board tabs -----------------------------------------------------------
+
+  function setTab(which) {
+    activeTab = which;
+    els.blockTheirs.classList.toggle('tab-hidden', which !== 'theirs');
+    els.blockMine.classList.toggle('tab-hidden', which !== 'mine');
+    els.tabTheirs.classList.toggle('sel', which === 'theirs');
+    els.tabMine.classList.toggle('sel', which === 'mine');
+  }
+
+  // Auto-switch on phase flow; a manual tap holds until the flow moves on.
+  function autoTab() {
+    const v = st.view;
+    if (v.phase !== 'AIM' || animating || targeting) return;
+    const k = `${v.phase}:${v.round}:${v.turn}`;
+    if (k === autoKey) return;
+    autoKey = k;
+    const wanted = v.settings.mode === 'classic' && v.turn !== v.seat ? 'mine' : 'theirs';
+    setTab(wanted);
+  }
+
+  els.tabTheirs.addEventListener('click', () => { sfx.click(); setTab('theirs'); });
+  els.tabMine.addEventListener('click', () => { sfx.click(); setTab('mine'); });
 
   // ---- rendering ----------------------------------------------------------
 
@@ -125,11 +151,21 @@ export function createBattle({ boards, els, send, showBanner }) {
     if (v.settings.mode === 'blitz' && v.phase === 'AIM' && foeAim > 0 && !v.foe.aimLocked) {
       els.status.textContent = `${status()} — enemy has armed ${foeAim}`;
     }
+    // Tab sub-labels carry the numbers on phones (board labels are hidden).
+    if (v.phase === 'AIM') {
+      els.tabTheirsSub.textContent = v.settings.mode === 'classic'
+        ? (v.turn === v.seat ? 'your shot' : 'their shot')
+        : v.you.aimLocked ? 'locked' : `${aim.length}/${v.you.maxShots} armed`;
+    } else {
+      els.tabTheirsSub.textContent = ' ';
+    }
+    els.tabMineSub.textContent = `${v.you.shipsAlive} afloat`;
   }
 
   function update(state) {
     st = state;
     const v = st.view;
+    autoTab();
     // Reconcile local aim with authoritative aim (e.g. after reconnect).
     if (v.phase === 'AIM' && !animating) {
       if (v.you.aim.length && !aim.length) aim = v.you.aim.map((c) => ({ ...c }));
@@ -192,6 +228,7 @@ export function createBattle({ boards, els, send, showBanner }) {
     if (targeting?.kind === def.kind) {
       targeting = null;
       els.targetHint.classList.add('hidden');
+      setTab('theirs');
       abilityBar();
       return;
     }
@@ -200,6 +237,7 @@ export function createBattle({ boards, els, send, showBanner }) {
       return;
     }
     targeting = def;
+    setTab(def.targets); // show the board this ability targets
     els.targetHint.textContent = def.hint;
     els.targetHint.classList.remove('hidden');
     abilityBar();
@@ -216,6 +254,7 @@ export function createBattle({ boards, els, send, showBanner }) {
       target.dir = d?.dir ?? 'h';
     }
     send({ t: 'ability', kind: def.kind, target });
+    if (def.targets === 'mine') setTab('theirs'); // back to the aiming board
     abilityBar();
   }
 
@@ -233,71 +272,76 @@ export function createBattle({ boards, els, send, showBanner }) {
 
   // ---- resolve choreography ----------------------------------------------
 
-  // Animate a resolve on the two boards. Returns a promise that settles when
-  // the barrage is done; app.js holds the next state until then.
-  function choreograph(resolve) {
-    if (!st) return Promise.resolve();
-    animating = true;
-    els.fireBtn.disabled = true;
-    const mySeat = st.view.seat;
-    const jobs = [];
+  // Animate one volley on its board (mine → enemy waters, theirs → my fleet),
+  // switching the visible tab to wherever the shells are landing.
+  function playVolley(volley, mySeat) {
+    const isMine = volley.seat === mySeat;
+    setTab(isMine ? 'theirs' : 'mine');
+    if (!isMine) els.tabMine.classList.add('pulse');
+    const board = isMine ? boards.theirs : boards.mine;
+    const model = isMine ? theirModel() : mineModel();
+    model.aim = null;
+    board.setModel(model);
 
-    for (const volley of resolve.volleys) {
-      const isMine = volley.seat === mySeat;
-      const board = isMine ? boards.theirs : boards.mine;
-      const model = isMine ? theirModel() : mineModel();
-      model.aim = null;
-      board.setModel(model);
+    const total = volley.shots.length + volley.sinks.length;
+    if (!total) return Promise.resolve();
+    return new Promise((finish) => {
+      let done = 0;
+      const complete = () => { if (++done === total) { els.tabMine.classList.remove('pulse'); finish(); } };
       volley.shots.forEach((shot, i) => {
-        jobs.push({ board, model, shot, at: i * 95 + (isMine ? 0 : 45), isMine });
+        setTimeout(() => {
+          sfx.whistle();
+          board.shell(shot, {
+            onImpact: () => {
+              model.revealed.push([`${shot.x},${shot.y}`, shot.result === 'miss' ? 'miss' : 'hit']);
+              if (shot.result === 'miss') { board.splash(shot); sfx.splash(); }
+              else {
+                board.plume(shot); board.shake(160); sfx.boom();
+                if (!isMine) navigator.vibrate?.(35); // your hull took one
+              }
+              complete();
+            },
+          });
+        }, i * 95);
       });
       const sinkDelay = volley.shots.length * 95 + 550;
       volley.sinks.forEach((sink, i) => {
-        jobs.push({ board, model, sink, at: sinkDelay + i * 420, isMine });
-      });
-    }
-
-    let done = 0;
-    const total = jobs.length;
-    return new Promise((finish) => {
-      const complete = () => { if (++done === total) { animating = false; finish(); } };
-      if (!total) { animating = false; finish(); return; }
-      for (const job of jobs) {
         setTimeout(() => {
-          if (job.shot) {
-            const { board, model, shot } = job;
-            sfx.whistle();
-            board.shell(shot, {
-              onImpact: () => {
-                model.revealed.push([`${shot.x},${shot.y}`, shot.result === 'miss' ? 'miss' : 'hit']);
-                if (shot.result === 'miss') { board.splash(shot); sfx.splash(); }
-                else {
-                  board.plume(shot); board.shake(160); sfx.boom();
-                  if (!job.isMine) navigator.vibrate?.(35); // your hull took one
-                }
-                complete();
-              },
-            });
-          } else {
-            const { board, model, sink } = job;
-            board.sinkFlash(sink.cells);
-            for (const c of sink.cells) {
-              const k = `${c.x},${c.y}`;
-              const e = model.revealed.find(([kk]) => kk === k);
-              if (e) e[1] = 'sink'; else model.revealed.push([k, 'sink']);
-            }
-            board.shake(320);
-            sfx.sink();
-            const label = sink.id.toUpperCase();
-            showBanner(
-              job.isMine ? `ENEMY ${label} DESTROYED!` : `YOUR ${label} IS DOWN!`,
-              sink.ability ? (job.isMine ? `They lost: ${sink.ability}` : `You lost: ${sink.ability} · +2⚡`) : '',
-            );
-            setTimeout(complete, 500);
+          board.sinkFlash(sink.cells);
+          for (const c of sink.cells) {
+            const k = `${c.x},${c.y}`;
+            const e = model.revealed.find(([kk]) => kk === k);
+            if (e) e[1] = 'sink'; else model.revealed.push([k, 'sink']);
           }
-        }, job.at);
-      }
+          board.shake(320);
+          sfx.sink();
+          const label = sink.id.toUpperCase();
+          showBanner(
+            isMine ? `ENEMY ${label} DESTROYED!` : `YOUR ${label} IS DOWN!`,
+            sink.ability ? (isMine ? `They lost: ${sink.ability}` : `You lost: ${sink.ability} · +2⚡`) : '',
+          );
+          setTimeout(complete, 500);
+        }, sinkDelay + i * 420);
+      });
     });
+  }
+
+  // Animate a resolve: your volley lands in enemy waters first, then the view
+  // flips to your fleet for the incoming barrage. Returns a promise that
+  // settles when done; app.js holds the next state until then.
+  async function choreograph(resolve) {
+    if (!st) return;
+    animating = true;
+    els.fireBtn.disabled = true;
+    const mySeat = st.view.seat;
+    const mine = resolve.volleys.filter((v) => v.seat === mySeat);
+    const theirs = resolve.volleys.filter((v) => v.seat !== mySeat);
+    for (const volley of [...mine, ...theirs]) {
+      await playVolley(volley, mySeat);
+      await new Promise((r) => setTimeout(r, 260)); // a beat between barrages
+    }
+    animating = false;
+    autoKey = ''; // let the next AIM state re-run the auto tab switch
   }
 
   return { update, onTheirsTap, onMineTap, onIntel, choreograph, get animating() { return animating; } };

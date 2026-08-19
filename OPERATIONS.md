@@ -24,6 +24,11 @@ rounds with a sonar ping → victory + reveal) and exits 0 on PASS.
 
 ## Redeploy checklist
 
+0. **Client-file changes need a cache-bust**: nginx caches game js/css for 7
+   days. Bump the `?v=N` stamp everywhere it appears — the `<link>`/`<script>`
+   tags in `public/index.html` AND every module import in `public/js/*.js`:
+   `sed -i 's/?v=OLD/?v=NEW/g' public/index.html public/js/*.js` (index.html
+   itself is no-cache, so the new stamps are picked up immediately).
 1. Work and commit in `/root/Battleships`; get `npm run check` green there.
 2. `diff -r --exclude node_modules --exclude .git /root/Battleships /srv/darksgames/games/battleships`
    — the live tree must not contain hotfixes the repo lacks (this box has a

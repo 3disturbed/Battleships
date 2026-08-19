@@ -321,8 +321,14 @@ public/js/sfx.js       — WebAudio: generated/sampled one-shots, mute toggle
 - **Rendering:** each board is a `<canvas>` (devicePixelRatio-aware). Grid,
   ships, markers, and FX draw in layered passes in one rAF loop that idles
   (no scheduled frame) outside animations — battery-friendly.
-- **Layout:** portrait phones stack boards (theirs on top — it's the one you
-  tap); landscape/desktop shows them side by side. Hit targets ≥ 40px.
+- **Layout:** phones show ONE board at a time behind a two-tab bar — "My
+  Shots" (enemy waters) and "My Ships" — auto-switched by game flow: aiming
+  selects My Shots, an incoming barrage flips to My Ships (your volley plays
+  out first, then the view flips for theirs), targeting a self-board ability
+  (decoy, full steam) flips to My Ships, and in Classic mode the enemy's turn
+  watches your own fleet. A manual tab tap holds until the flow moves on.
+  Desktop (≥760px) hides the tabs and shows both boards side by side. Hit
+  targets ≥ 40px.
 - **Resilience:** `net.js` owns reconnect with exponential backoff and resumes
   from `snapshot`; every screen renders purely from the latest server state,
   so a refresh at any moment lands you exactly where you were.

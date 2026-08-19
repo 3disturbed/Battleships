@@ -150,7 +150,26 @@ input:focus { outline: 2px solid var(--accent-deep); border-color: transparent; 
 .streak { color: var(--hit); font-weight: 800; font-size: 13px; }
 
 .boards { display: flex; flex-direction: column; gap: 10px; }
-.board-block.own { max-width: 76%; align-self: center; }
+
+/* Board tabs (phones): one board at a time, full width, auto-switched by
+   game phase. Desktop shows both boards and hides the tab bar. */
+.board-tabs { display: flex; gap: 6px; }
+.tab {
+  flex: 1; border: 1px solid var(--line); border-radius: 11px;
+  background: var(--panel); color: var(--ink-dim);
+  font-size: 13px; font-weight: 800; letter-spacing: .06em;
+  padding: 8px 6px 6px; cursor: pointer; touch-action: manipulation;
+}
+.tab.sel { background: #123152; color: var(--ink); border-color: var(--accent); box-shadow: 0 0 0 1px #38bdf844; }
+.tab.pulse { animation: tabpulse .5s ease-in-out 2; }
+@keyframes tabpulse { 50% { border-color: var(--hit); box-shadow: 0 0 12px #fb923c88; } }
+.tab-sub { display: block; font-size: 11px; font-weight: 600; letter-spacing: 0; color: var(--ink-dim); margin-top: 1px; }
+.tab.sel .tab-sub { color: var(--accent); }
+
+@media (max-width: 759.98px) {
+  .board-block.tab-hidden { display: none; }
+  #screen-battle .board-label { display: none; } /* the tabs carry this info */
+}
 .board-label { font-size: 11.5px; letter-spacing: .14em; color: var(--ink-dim); font-weight: 800; margin-bottom: 4px; }
 .aim-count { color: var(--accent); }
 .board-wrap {
@@ -271,7 +290,8 @@ input:focus { outline: 2px solid var(--accent-deep); border-color: transparent; 
   #app { max-width: 900px; }
   .boards { flex-direction: row; align-items: flex-start; }
   .board-block { flex: 1; }
-  .board-block.own { max-width: none; align-self: auto; }
+  .board-block.tab-hidden { display: block; } /* desktop: both boards, no tabs */
+  .board-tabs { display: none; }
   .screen { animation: none; }
 }
 

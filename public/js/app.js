@@ -1,12 +1,12 @@
 // Boot + screen routing + message dispatch. Every screen renders from the
 // latest server state; a refresh at any moment lands you where you were.
 
-import { createNet } from './net.js';
-import { sfx } from './sfx.js';
-import { Board } from './board.js';
-import { createPlacement } from './place.js';
-import { createBattle } from './battle.js';
-import { createLobby } from './lobby.js';
+import { createNet } from './net.js?v=2';
+import { sfx } from './sfx.js?v=2';
+import { Board } from './board.js?v=2';
+import { createPlacement } from './place.js?v=2';
+import { createBattle } from './battle.js?v=2';
+import { createLobby } from './lobby.js?v=2';
 
 const $ = (id) => document.getElementById(id);
 
@@ -92,6 +92,9 @@ const battle = createBattle({
     head: $('battle-head'), status: $('battle-status'), clock: $('battle-clock'),
     aimCount: $('aim-count'), fleetNote: $('fleet-note'), abilityBar: $('ability-bar'),
     fireBtn: $('btn-fire'), claimBtn: $('btn-claim'), targetHint: $('target-hint'),
+    tabTheirs: $('tab-theirs'), tabMine: $('tab-mine'),
+    tabTheirsSub: $('tab-theirs-sub'), tabMineSub: $('tab-mine-sub'),
+    blockTheirs: $('block-theirs'), blockMine: $('block-mine'),
   },
   send, showBanner,
 });

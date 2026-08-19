@@ -1,7 +1,7 @@
 // Placement screen: drag ships, tap to rotate, shuffle, lock. Keeps a local
 // mirror of the fleet rules (bounds/overlap) — the server revalidates anyway.
 
-import { sfx } from './sfx.js';
+import { sfx } from './sfx.js?v=2';
 
 export const SHIPS = [
   { id: 'carrier', size: 5 },

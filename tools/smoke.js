@@ -154,6 +154,15 @@ assert(layoutSent(), 'fleet ready sends a layout');
 ws.push(mkState('AIM', {}, { seat: 1 }));
 await sleep(50);
 assert(visible('screen-battle'), 'battle renders');
+const blockMine = window.document.getElementById('block-mine');
+const blockTheirs = window.document.getElementById('block-theirs');
+assert(blockMine.classList.contains('tab-hidden'), 'AIM auto-selects the My Shots tab');
+assert(!blockTheirs.classList.contains('tab-hidden'), 'enemy waters visible during aim');
+window.document.getElementById('tab-mine').click();
+await sleep(10);
+assert(!blockMine.classList.contains('tab-hidden'), 'manual tab switch shows my ships');
+window.document.getElementById('tab-theirs').click();
+await sleep(10);
 ws.push({
   t: 'resolve',
   round: 1,
@@ -170,6 +179,8 @@ ws.push({
 ws.push(mkState('AIM', {}, { seat: 1, round: 2 }));
 await sleep(2600);
 assert(visible('screen-battle'), 'battle still on screen after barrage');
+assert(blockMine.classList.contains('tab-hidden'),
+  'auto tab back on My Shots for the new round after the barrage');
 
 // game over
 ws.push(mkState('GAMEOVER', {}, {
