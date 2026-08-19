@@ -300,6 +300,28 @@ input:focus { outline: 2px solid var(--accent-deep); border-color: transparent; 
   background: #0c1a30cc; border: 1px solid var(--line); border-radius: 999px;
   font-size: 15px; padding: 7px 9px; cursor: pointer; z-index: 40;
 }
+.menu-btn {
+  position: fixed; top: calc(8px + env(safe-area-inset-top)); left: 10px;
+  background: #0c1a30cc; border: 1px solid var(--line); border-radius: 999px;
+  color: var(--ink-dim); font-size: 13px; font-weight: 800;
+  padding: 7px 12px; cursor: pointer; z-index: 40;
+}
+.menu-btn:active { transform: scale(.95); }
+
+.confirm {
+  position: fixed; inset: 0; z-index: 60;
+  background: #04091285; backdrop-filter: blur(3px);
+  display: grid; place-items: center; padding: 20px;
+}
+.confirm-box {
+  background: linear-gradient(180deg, var(--panel), #0d1d36);
+  border: 1px solid var(--line); border-radius: 16px;
+  padding: 18px; max-width: 380px; width: 100%;
+  display: flex; flex-direction: column; gap: 14px;
+  text-align: center; font-weight: 700; font-size: 16px;
+  animation: rise .18s ease-out;
+}
+.confirm-sub { color: var(--ink-dim); font-weight: 500; font-size: 13.5px; }
 .conn {
   position: fixed; bottom: calc(8px + env(safe-area-inset-bottom)); right: 10px;
   background: #451a1acc; border: 1px solid var(--danger); color: #fecaca;

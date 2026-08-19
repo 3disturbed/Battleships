@@ -8,7 +8,7 @@
 <meta property="og:title" content="Battleships">
 <meta property="og:description" content="You've been challenged. Tap the link — no signup, game takes five minutes.">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🚢</text></svg>">
-<link rel="stylesheet" href="/css/game.css?v=3">
+<link rel="stylesheet" href="/css/game.css?v=4">
 </head>
 <body>
 
@@ -139,6 +139,16 @@
 </main>
 
 <!-- persistent chrome -->
+<button id="btn-menu" class="menu-btn hidden">⚓ Menu</button>
+<div id="confirm-leave" class="confirm hidden">
+  <div class="confirm-box">
+    <p>Abandon this battle?<br><span class="confirm-sub">Leaving mid-game counts as a forfeit.</span></p>
+    <div class="row gap">
+      <button id="btn-confirm-stay" class="btn grow">Keep fighting</button>
+      <button id="btn-confirm-leave" class="btn warn grow">Forfeit &amp; leave</button>
+    </div>
+  </div>
+</div>
 <div id="emote-bar" class="emote-bar hidden"></div>
 <div id="emote-stage"></div>
 <div id="toast" class="toast hidden"></div>
@@ -146,6 +156,6 @@
 <button id="btn-mute" class="mute" title="Sound">🔊</button>
 <div id="conn-status" class="conn hidden">Reconnecting…</div>
 
-<script type="module" src="/js/app.js?v=3"></script>
+<script type="module" src="/js/app.js?v=4"></script>
 </body>
 </html>

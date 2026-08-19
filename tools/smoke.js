@@ -163,6 +163,16 @@ await sleep(10);
 assert(!blockMine.classList.contains('tab-hidden'), 'manual tab switch shows my ships');
 window.document.getElementById('tab-theirs').click();
 await sleep(10);
+
+// Menu escape hatch: visible in battle, mid-game leave asks for confirmation.
+assert(visible('btn-menu'), 'menu button visible in battle');
+window.document.getElementById('btn-menu').click();
+await sleep(10);
+assert(visible('confirm-leave'), 'mid-game leave asks before forfeiting');
+window.document.getElementById('btn-confirm-stay').click();
+await sleep(10);
+assert(!visible('confirm-leave'), 'staying dismisses the confirm');
+assert(visible('screen-battle'), 'still in the battle after staying');
 ws.push({
   t: 'resolve',
   round: 1,

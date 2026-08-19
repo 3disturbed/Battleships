@@ -193,7 +193,16 @@ Mid-battle refresh or connection blip: the client auto-reconnects with its
 with a claim-victory button that arms when the grace expires. A reconnected
 player gets a full state snapshot and play resumes at the current phase.
 
-### 4.4 Errors
+### 4.4 The escape hatch
+
+A fixed **⚓ Menu** button (top-left) rides above the lobby, placement and
+battle screens. From the lobby it returns to the main menu instantly; from a
+live game it first asks — "Abandon this battle? Leaving mid-game counts as a
+forfeit" — before forfeiting and leaving. The reset never waits on the server
+round-trip, so a dead connection can't trap a player in a finished room, and
+the leaver is spared the defeat banner for the forfeit they just chose.
+
+### 4.5 Errors
 
 Every failure path lands on a human sentence and one button. No dead ends:
 "Room QK7F3M has expired — start a new game and send a fresh link."

@@ -1,12 +1,12 @@
 // Boot + screen routing + message dispatch. Every screen renders from the
 // latest server state; a refresh at any moment lands you where you were.
 
-import { createNet } from './net.js?v=3';
-import { sfx } from './sfx.js?v=3';
-import { Board } from './board.js?v=3';
-import { createPlacement } from './place.js?v=3';
-import { createBattle } from './battle.js?v=3';
-import { createLobby } from './lobby.js?v=3';
+import { createNet } from './net.js?v=4';
+import { sfx } from './sfx.js?v=4';
+import { Board } from './board.js?v=4';
+import { createPlacement } from './place.js?v=4';
+import { createBattle } from './battle.js?v=4';
+import { createLobby } from './lobby.js?v=4';
 
 const $ = (id) => document.getElementById(id);
 
@@ -18,6 +18,7 @@ const SCREENS = ['home', 'lobby', 'place', 'battle', 'over'];
 
 let state = null; // latest applied server 'state' message
 let pendingState = null; // held back while a barrage animates
+let leaving = false; // ignore room traffic once we've chosen to leave
 let seat = -1;
 let joinTarget = null; // room code from the invite link
 let clockTimer = 0;
@@ -43,6 +44,7 @@ const boards = {
 function show(screenName) {
   for (const s of SCREENS) $(`screen-${s}`).classList.toggle('hidden', s !== screenName);
   $('emote-bar').classList.toggle('hidden', !['battle', 'over', 'place'].includes(screenName));
+  $('btn-menu').classList.toggle('hidden', !['lobby', 'place', 'battle'].includes(screenName));
   boards.theirs.setActive(screenName === 'battle');
   boards.mine.setActive(screenName === 'battle');
   boards.place.setActive(screenName === 'place');
@@ -128,7 +130,7 @@ const net = createNet({
       case 'intel': battle.onIntel(msg.intel); return;
       case 'emote': onEmote(msg); return;
       case 'error': onServerError(msg); return;
-      case 'left': state = null; localStorage.removeItem('bs_token'); show('home'); return;
+      case 'left': resetToHome(); leaving = false; return;
     }
   },
   onStatus(s) {
@@ -137,6 +139,7 @@ const net = createNet({
 });
 
 function applyState(msg) {
+  if (leaving) return; // the forfeit-broadcast must not flash a defeat screen
   if (battle.animating) { pendingState = msg; return; }
   const prev = state;
   state = msg;
@@ -165,6 +168,33 @@ function onResolve(msg) {
       render();
     }
   });
+}
+
+// Back to the main menu: clear room state, dead token, stale invite hash, and
+// any post-barrage state still waiting to render.
+// NOTE: deliberately does not clear `leaving` — that guard must outlive the
+// reset, until the server's 'left' ack (or a fresh create/join) clears it.
+function resetToHome() {
+  state = null;
+  pendingState = null;
+  joinTarget = null;
+  localStorage.removeItem('bs_token');
+  history.replaceState(null, '', '/');
+  $('confirm-leave').classList.add('hidden');
+  renderHome();
+  show('home');
+}
+
+function requestLeave() {
+  sfx.click();
+  const phase = state?.view?.phase;
+  if (phase === 'PLACEMENT' || phase === 'AIM') {
+    $('confirm-leave').classList.remove('hidden'); // leaving a live game forfeits
+    return;
+  }
+  leaving = true;
+  send({ t: 'leave' });
+  resetToHome(); // don't wait on the round-trip; a dead socket must not trap us
 }
 
 function onServerError(msg) {
@@ -355,6 +385,7 @@ function saveIdentity() {
 $('btn-create').addEventListener('click', () => {
   sfx.unlock(); sfx.arm();
   saveIdentity();
+  leaving = false;
   localStorage.removeItem('bs_token');
   send({ t: 'create', settings: {} });
 });
@@ -362,12 +393,24 @@ $('btn-create').addEventListener('click', () => {
 $('btn-join').addEventListener('click', () => {
   sfx.unlock(); sfx.arm();
   saveIdentity();
+  leaving = false;
   localStorage.removeItem('bs_token');
   send({ t: 'join', roomCode: joinTarget });
 });
 
-$('btn-leave-lobby').addEventListener('click', () => { send({ t: 'leave' }); });
-$('btn-new-game').addEventListener('click', () => { send({ t: 'leave' }); joinTarget = null; history.replaceState(null, '', '/'); });
+$('btn-leave-lobby').addEventListener('click', requestLeave);
+$('btn-new-game').addEventListener('click', requestLeave);
+$('btn-menu').addEventListener('click', requestLeave);
+$('btn-confirm-stay').addEventListener('click', () => {
+  sfx.click();
+  $('confirm-leave').classList.add('hidden');
+});
+$('btn-confirm-leave').addEventListener('click', () => {
+  sfx.disarm();
+  leaving = true;
+  send({ t: 'leave' });
+  resetToHome();
+});
 $('btn-rematch').addEventListener('click', () => { sfx.arm(); send({ t: 'rematch' }); });
 $('btn-fire').addEventListener('click', () => { sfx.unlock(); send({ t: 'lock' }); });
 $('btn-claim').addEventListener('click', () => send({ t: 'claim' }));
