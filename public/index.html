@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Battleships — sink your mates in five minutes</title>
+<meta name="description" content="Fast multiplayer Battleships. Send a link, your friend is in. Simultaneous volleys, ship abilities, no signups.">
+<meta property="og:title" content="Battleships">
+<meta property="og:description" content="You've been challenged. Tap the link — no signup, game takes five minutes.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🚢</text></svg>">
+<link rel="stylesheet" href="/css/game.css">
+</head>
+<body>
+
+<main id="app">
+
+  <!-- HOME ------------------------------------------------------------- -->
+  <section id="screen-home" class="screen">
+    <div class="hero">
+      <h1 class="logo">BATTLE<span>SHIPS</span></h1>
+      <p class="tag">Sink your mates in five minutes. No signups — send a link, they're in.</p>
+    </div>
+    <div class="card" id="home-card">
+      <div id="invite-banner" class="invite hidden">
+        <span class="invite-icon">📨</span>
+        <span>You've been challenged! Room <b id="invite-code"></b></span>
+      </div>
+      <label class="field-label" for="name-input">Your name</label>
+      <input id="name-input" maxlength="16" autocomplete="nickname" placeholder="Sailor">
+      <div class="field-label">Flag</div>
+      <div id="avatar-row" class="avatar-row"></div>
+      <button id="btn-create" class="btn big primary">Play with a friend</button>
+      <button id="btn-join" class="btn big primary hidden">Join the battle</button>
+      <p id="home-error" class="error hidden"></p>
+    </div>
+    <p class="footnote">Two players · phones or desktops · a game takes 3–6 minutes</p>
+  </section>
+
+  <!-- LOBBY ------------------------------------------------------------ -->
+  <section id="screen-lobby" class="screen hidden">
+    <h2 class="screen-title">Battle stations</h2>
+    <div class="card">
+      <div class="share-row">
+        <div class="share-link" id="share-link">…</div>
+        <button id="btn-share" class="btn primary">Share</button>
+      </div>
+      <p class="hint">Send this link to a friend — they tap it and they're in.</p>
+    </div>
+    <div class="card seats" id="lobby-seats"></div>
+    <div class="card" id="lobby-settings">
+      <div class="setting-row" data-key="mode">
+        <span class="setting-name">Mode</span>
+        <div class="seg" data-opts='[["blitz","Blitz ⚡"],["classic","Classic"]]'></div>
+      </div>
+      <div class="setting-row" data-key="grid">
+        <span class="setting-name">Grid</span>
+        <div class="seg" data-opts='[[10,"10×10"],[8,"8×8 quick"]]'></div>
+      </div>
+      <div class="setting-row" data-key="aimTimer">
+        <span class="setting-name">Aim clock</span>
+        <div class="seg" data-opts='[[15,"15s"],[10,"10s turbo"]]'></div>
+      </div>
+      <div class="setting-row" data-key="series">
+        <span class="setting-name">Series</span>
+        <div class="seg" data-opts='[[1,"Single"],[3,"Best of 3"],[5,"Best of 5"]]'></div>
+      </div>
+      <p class="hint" id="settings-hint"></p>
+    </div>
+    <button id="btn-ready" class="btn big primary">Ready up</button>
+    <button id="btn-leave-lobby" class="btn ghost">Leave</button>
+  </section>
+
+  <!-- PLACEMENT --------------------------------------------------------- -->
+  <section id="screen-place" class="screen hidden">
+    <div class="phase-bar">
+      <span id="place-status">Position your fleet</span>
+      <div class="clock"><div id="place-clock" class="clock-fill"></div></div>
+    </div>
+    <div class="board-wrap place-wrap">
+      <canvas id="board-place"></canvas>
+    </div>
+    <p class="hint center">Drag to move · tap a ship to rotate</p>
+    <div class="row gap">
+      <button id="btn-shuffle" class="btn">🎲 Shuffle</button>
+      <button id="btn-lock-fleet" class="btn primary grow">Fleet ready</button>
+    </div>
+  </section>
+
+  <!-- BATTLE ------------------------------------------------------------ -->
+  <section id="screen-battle" class="screen hidden">
+    <div class="battle-head" id="battle-head"></div>
+    <div class="phase-bar">
+      <span id="battle-status"></span>
+      <div class="clock"><div id="battle-clock" class="clock-fill"></div></div>
+    </div>
+    <div class="boards">
+      <div class="board-block">
+        <div class="board-label">ENEMY WATERS <span id="aim-count" class="aim-count"></span></div>
+        <div class="board-wrap" id="wrap-theirs"><canvas id="board-theirs"></canvas></div>
+      </div>
+      <div class="board-block own">
+        <div class="board-label">YOUR FLEET <span id="fleet-note"></span></div>
+        <div class="board-wrap" id="wrap-mine"><canvas id="board-mine"></canvas></div>
+      </div>
+    </div>
+    <div id="ability-bar" class="ability-bar"></div>
+    <div class="row gap battle-actions">
+      <button id="btn-claim" class="btn warn hidden">Claim victory</button>
+      <button id="btn-fire" class="btn big primary grow">FIRE!</button>
+    </div>
+    <div id="target-hint" class="target-hint hidden"></div>
+  </section>
+
+  <!-- GAME OVER ---------------------------------------------------------- -->
+  <section id="screen-over" class="screen hidden">
+    <div id="over-banner" class="over-banner"></div>
+    <p id="over-reason" class="over-reason"></p>
+    <div id="series-pips" class="series-pips"></div>
+    <div class="card stats" id="over-stats"></div>
+    <div class="reveal-boards">
+      <div class="board-block">
+        <div class="board-label">THEIR FLEET</div>
+        <div class="board-wrap"><canvas id="board-reveal-theirs"></canvas></div>
+      </div>
+      <div class="board-block">
+        <div class="board-label">YOUR FLEET</div>
+        <div class="board-wrap"><canvas id="board-reveal-mine"></canvas></div>
+      </div>
+    </div>
+    <button id="btn-rematch" class="btn big primary">⚔ Rematch</button>
+    <button id="btn-new-game" class="btn ghost">Back to port</button>
+  </section>
+
+</main>
+
+<!-- persistent chrome -->
+<div id="emote-bar" class="emote-bar hidden"></div>
+<div id="emote-stage"></div>
+<div id="toast" class="toast hidden"></div>
+<div id="banner-stage"></div>
+<button id="btn-mute" class="mute" title="Sound">🔊</button>
+<div id="conn-status" class="conn hidden">Reconnecting…</div>
+
+<script type="module" src="/js/app.js"></script>
+</body>
+</html>
