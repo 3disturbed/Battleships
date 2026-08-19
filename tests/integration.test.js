@@ -7,8 +7,10 @@ import assert from 'node:assert/strict';
 import { createServer } from '../server.js';
 import { TestClient, lastState } from './wsclient.js';
 import { ROWS_LAYOUT, ROWS_CELLS, waterCells } from './helpers.js';
+import { shipCells } from '../game/placement.js';
 
-process.env.RECONNECT_GRACE_MS = '200'; // imported lazily by server.js at module load
+process.env.RECONNECT_GRACE_MS = '200'; // read at createServer() time
+process.env.BOT_FAST = '1'; // bots think in ~15ms instead of seconds
 
 let srv;
 let url;
@@ -196,6 +198,91 @@ test('mid-game leave is a forfeit for the leaver', async () => {
   do { s = await a.take('state'); } while (s.view.phase !== 'GAMEOVER');
   assert.equal(s.view.winner, 0);
   assert.equal(s.view.reason, 'left');
+  await a.close();
+  await b.close();
+});
+
+test('solo player: add a bot, beat it, rematch, dismiss it', async () => {
+  const a = new TestClient(url);
+  await a.open;
+  a.send({ t: 'hello', v: 1, name: 'Solo', avatar: '🦈' });
+  await a.take('welcome');
+  a.send({ t: 'create', settings: { mode: 'blitz', grid: 10, series: 3 } });
+  const w = await a.take('welcome');
+
+  a.send({ t: 'addBot', level: 1 });
+  let s;
+  do { s = await a.take('state'); } while (!s.view.seats[1]);
+  assert.equal(s.view.seats[1].bot, true);
+  assert.equal(s.view.seats[1].ready, true, 'bots ready up instantly');
+  assert.equal(s.presence[1], 'on');
+
+  a.send({ t: 'ready', ready: true });
+  await untilPhase(a, 'PLACEMENT');
+  a.send({ t: 'layout', ships: ROWS_LAYOUT });
+  s = await untilPhase(a, 'AIM'); // the bot auto-placed (randomly)
+
+  // The test is omniscient: read the bot's real layout from the registry and
+  // hunt exactly those 17 cells. A Deckhand cannot land 17 targeted hits first.
+  const room = srv.registry.get(w.roomCode);
+  const targets = room.state.players[1].ships.flatMap((ship) => shipCells(ship));
+  assert.equal(targets.length, 17);
+  let idx = 0;
+  let guard = 0;
+  let round = s.view.round;
+  while (s.view.phase === 'AIM' && guard++ < 40) {
+    const n = Math.min(s.view.you.maxShots, targets.length - idx);
+    assert.ok(n > 0, 'ran out of targets with the bot fleet still afloat');
+    a.send({ t: 'aim', cells: targets.slice(idx, idx + n) });
+    a.send({ t: 'lock' });
+    await a.take('resolve', 8000); // the bot aims and locks on its own
+    idx += n;
+    // Skip stale same-round states buffered before the resolve; stop only on
+    // a genuinely new round (or the end).
+    do { s = await a.take('state'); } while (
+      s.view.phase !== 'GAMEOVER' && !(s.view.phase === 'AIM' && s.view.round > round));
+    round = s.view.round;
+  }
+  assert.equal(s.view.phase, 'GAMEOVER');
+  assert.equal(s.view.winner, 0);
+
+  // No claiming victory over a bot — it is always "present".
+  a.send({ t: 'claim' });
+  assert.match((await a.take('error')).message, /not been gone/);
+
+  // Bot votes rematch by itself; one tap from the human starts game 2.
+  a.send({ t: 'rematch' });
+  s = await untilPhase(a, 'PLACEMENT');
+  assert.equal(s.view.series.game, 2);
+
+  await a.close();
+});
+
+test('dismissing a bot frees the seat for a human', async () => {
+  const a = new TestClient(url);
+  await a.open;
+  a.send({ t: 'hello', v: 1, name: 'Host', avatar: '🐙' });
+  await a.take('welcome');
+  a.send({ t: 'create', settings: {} });
+  const w = await a.take('welcome');
+
+  a.send({ t: 'addBot', level: 5 });
+  let s;
+  do { s = await a.take('state'); } while (!s.view.seats[1]);
+  a.send({ t: 'addBot', level: 2 });
+  assert.match((await a.take('error')).message, /taken/);
+
+  a.send({ t: 'removeBot' });
+  do { s = await a.take('state'); } while (s.view.seats[1]);
+  assert.equal(s.presence[1], 'none');
+
+  const b = new TestClient(url);
+  await b.open;
+  b.send({ t: 'hello', v: 1, name: 'Friend', avatar: '🐳' });
+  await b.take('welcome');
+  b.send({ t: 'join', roomCode: w.roomCode });
+  assert.equal((await b.take('welcome')).seat, 1);
+
   await a.close();
   await b.close();
 });

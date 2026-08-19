@@ -139,7 +139,29 @@ there is no first-move advantage in Blitz).
 - All audio behind a mute toggle persisted in localStorage; everything renders
   fine with reduced-motion media query honored (no shake, instant resolves).
 
-### 3.8 Identity
+### 3.8 Bot opponents
+
+No friend around? The host can seat a bot from the lobby (empty seat, host
+only) at one of five levels, and dismiss it any time in the lobby or after a
+game to free the seat for a human:
+
+| Lv | Rank | Behavior |
+|---|---|---|
+| 1 | Deckhand 🐣 | random fire, no follow-up, no abilities |
+| 2 | Ensign 🪝 | chases hits with adjacent shots |
+| 3 | Captain 🧭 | parity hunting, line-following target mode, occasional sonar |
+| 4 | Commodore 🎖️ | probability-density hunting, purposeful abilities (big guns, recon, decoy) |
+| 5 | Admiral 👑 | exact density, recon-led targeting, the full ability book incl. escape-by-full-steam |
+
+Fairness is structural: the bot decides from `project(state, seat)` — the same
+masked per-player view a human client renders from — and plays through the
+same validated actions. It cannot see hidden ships, and a decoy dupes it
+exactly like a person (levels 2+ will waste shells hunting the buoy). Bots
+"think" on humanlike delays (~1–3s), ready up instantly, always accept a
+rematch, are always "present" (no claim-victory against a bot), and never
+keep a room alive — empty-room GC applies as usual.
+
+### 3.9 Identity
 
 Nickname (2–16 chars, sanitized) + a color/emoji avatar pair chosen from a
 fixed palette; persisted in localStorage. No accounts in v1 — see §12 for the
@@ -279,6 +301,8 @@ protocol-versioned in the hello (`v: 1`); mismatch → `error{code:"version"}`.
 | `lock` | — (early volley lock) | AIM |
 | `emote` | `id (0–7)` | any in-room |
 | `rematch` | — | GAMEOVER |
+| `addBot` | `level (1–5)` (host only, empty seat) | LOBBY |
+| `removeBot` | — (host only) | LOBBY, GAMEOVER |
 | `claim` | — (claim win after grace) | BATTLE paused |
 | `leave` | — | any |
 

@@ -31,7 +31,7 @@ export function project(state, seat) {
     turn: state.turn,
     settings: state.settings,
     series: state.series,
-    seats: state.seats.map((s) => (s ? { name: s.name, avatar: s.avatar, ready: s.ready } : null)),
+    seats: state.seats.map((s) => (s ? { name: s.name, avatar: s.avatar, ready: s.ready, bot: !!s.bot } : null)),
     winner: state.winner,
     reason: state.reason,
     rematch: [...state.rematch],

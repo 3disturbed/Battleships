@@ -222,7 +222,7 @@ export function act(state, seat, action) {
   switch (action.t) {
     case 'join': {
       if (state.seats[seat]) return err('Seat taken.');
-      state.seats[seat] = { name: action.name, avatar: action.avatar, ready: false };
+      state.seats[seat] = { name: action.name, avatar: action.avatar, ready: false, bot: !!action.bot };
       return ok([{ t: 'update' }]);
     }
 

@@ -122,6 +122,27 @@ input:focus { outline: 2px solid var(--accent-deep); border-color: transparent; 
 .seat .state.ready { color: var(--good); font-weight: 700; }
 .seat.empty { opacity: .55; }
 
+.bot-chip {
+  font-size: 10px; font-weight: 900; letter-spacing: .1em;
+  background: var(--accent-deep); color: #04121f;
+  padding: 2px 6px; border-radius: 6px; vertical-align: 2px;
+}
+.bot-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
+.bot-pick {
+  display: flex; flex-direction: column; align-items: center; gap: 2px;
+  padding: 9px 2px; border-radius: 11px; cursor: pointer;
+  background: var(--bg2); border: 1px solid var(--line); color: var(--ink);
+}
+.bot-pick:active { transform: scale(.96); }
+.bot-pick .ic { font-size: 20px; }
+.bot-pick .nm { font-size: 10.5px; font-weight: 800; }
+.bot-pick .bl { font-size: 8.5px; color: var(--ink-dim); text-align: center; line-height: 1.2; }
+.btn.small { font-size: 12.5px; padding: 7px 10px; }
+@media (max-width: 400px) {
+  .bot-grid { grid-template-columns: repeat(5, 1fr); }
+  .bot-pick .bl { display: none; }
+}
+
 .setting-row { display: flex; align-items: center; gap: 10px; justify-content: space-between; }
 .setting-name { font-size: 14px; color: var(--ink-dim); font-weight: 600; }
 .seg { display: flex; gap: 4px; background: var(--bg2); padding: 3px; border-radius: 10px; }

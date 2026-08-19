@@ -17,6 +17,8 @@ import { startHeartbeat, makeBucket, makeIpLimiter } from './lib/hub.js';
 import { act } from './game/state.js';
 import { project } from './game/view.js';
 import { RECONNECT_GRACE_MS } from './game/const.js';
+import { randomLayout } from './game/placement.js';
+import { BOT_PROFILES, decideTurn, clampLevel } from './lib/bot.js';
 
 const ROOT = dirname(fileURLToPath(import.meta.url));
 const PUBLIC_DIR = join(ROOT, 'public');
@@ -81,7 +83,7 @@ export function createServer({ port = 3000, host = '127.0.0.1', maxRooms = 500, 
 
   function stateFor(room, seatIdx) {
     const claimable = room.seats.map(
-      (s, i) => !s.conn && !!s.disconnectedAt && Date.now() - s.disconnectedAt >= GRACE_MS
+      (s, i) => !s.bot && !s.conn && !!s.disconnectedAt && Date.now() - s.disconnectedAt >= GRACE_MS
         && !!room.state.seats[i],
     );
     return {
@@ -89,7 +91,7 @@ export function createServer({ port = 3000, host = '127.0.0.1', maxRooms = 500, 
       roomCode: room.code,
       deadlineAt: room.deadline && room.deadline.remainingMs === null ? room.deadline.at : null,
       paused: room.paused,
-      presence: room.seats.map((s, i) => (room.state.seats[i] ? (s.conn ? 'on' : 'off') : 'none')),
+      presence: room.seats.map((s, i) => (room.state.seats[i] ? (s.bot || s.conn ? 'on' : 'off') : 'none')),
       claimable,
       serverNow: Date.now(),
       view: project(room.state, seatIdx),
@@ -98,6 +100,73 @@ export function createServer({ port = 3000, host = '127.0.0.1', maxRooms = 500, 
 
   function broadcastState(room) {
     room.seats.forEach((seat, i) => { if (seat.conn) send(seat.conn, stateFor(room, i)); });
+    scheduleBot(room); // any state change may hand the bot its next move
+  }
+
+  // ---- bot driver ------------------------------------------------------------
+  // The bot plays through the same act()/handleEvents path as a socket would,
+  // deciding from project(state, seat) — the fair, masked view.
+
+  const BOT_FAST = process.env.BOT_FAST === '1'; // tests shrink the thinking time
+  const wait = (base, spread) => (BOT_FAST ? 15 : base + Math.random() * spread);
+
+  function scheduleBot(room) {
+    const bot = room.bot;
+    if (!bot || room.paused) return;
+    const st = room.state;
+    const phase = st.phase;
+    let stage = null;
+    let delay = 0;
+
+    if (phase === 'PLACEMENT' && !st.players[bot.seat].layoutLocked) {
+      stage = 'place';
+      delay = wait(900, 700);
+    } else if (phase === 'AIM' && !st.players[bot.seat].aimLocked
+      && (st.settings.mode !== 'classic' || st.turn === bot.seat)) {
+      stage = 'aim';
+      delay = wait(1000 + (5 - bot.level) * 350, 900);
+    } else if (phase === 'GAMEOVER' && !st.rematch[bot.seat] && st.seats[bot.seat]) {
+      stage = 'rematch';
+      delay = wait(1200, 600);
+    }
+
+    const stageKey = stage && `${stage}:${phase}:${st.round}:${st.series.game}:${st.turn}`;
+    if (!stage || bot.key === stageKey) return;
+    bot.key = stageKey;
+    clearTimeout(bot.timer);
+    bot.timer = setTimeout(() => runBot(room, stage, stageKey), delay);
+  }
+
+  function runBot(room, stage, stageKey) {
+    const bot = room.bot;
+    if (!bot || bot.key !== stageKey || registry.get(room.code) !== room) return;
+    if (room.paused) { bot.key = ''; return; } // rescheduled on resume
+    const st = room.state;
+    try {
+      if (stage === 'place' && st.phase === 'PLACEMENT') {
+        const res = act(st, bot.seat, { t: 'layout', ships: randomLayout(st.settings.grid, Math.random) });
+        if (res.ok) handleEvents(room, res.events);
+      } else if (stage === 'aim' && st.phase === 'AIM') {
+        const { ability, cells } = decideTurn(bot.level, project(st, bot.seat), Math.random);
+        if (ability) {
+          const r = act(st, bot.seat, { t: 'ability', kind: ability.kind, target: ability.target });
+          if (r.ok) handleEvents(room, r.events); // host sees energy move
+        }
+        const aimRes = act(st, bot.seat, { t: 'aim', cells });
+        if (aimRes.ok) handleEvents(room, aimRes.events); // host sees the armed count climb
+        bot.timer = setTimeout(() => {
+          if (registry.get(room.code) !== room || room.state.phase !== 'AIM') return;
+          if (room.paused) { bot.key = ''; return; } // re-aim after resume
+          const lockRes = act(room.state, bot.seat, { t: 'lock' });
+          if (lockRes.ok) handleEvents(room, lockRes.events);
+        }, wait(800, 600));
+      } else if (stage === 'rematch' && st.phase === 'GAMEOVER') {
+        const res = act(st, bot.seat, { t: 'rematch' });
+        if (res.ok) handleEvents(room, res.events);
+      }
+    } catch (err) {
+      log('bot_error', { room: room.code, error: String(err?.stack || err) });
+    }
   }
 
   function onDeadline(room) {
@@ -155,7 +224,7 @@ export function createServer({ port = 3000, host = '127.0.0.1', maxRooms = 500, 
     conn.room = room;
     conn.seat = seatIdx;
     room.lastActivity = Date.now();
-    if (room.paused && room.seats.every((s, i) => !room.state.seats[i] || s.conn)) {
+    if (room.paused && room.seats.every((s, i) => !room.state.seats[i] || s.conn || s.bot)) {
       room.paused = false;
       resumeDeadline(room, () => onDeadline(room));
     }
@@ -216,6 +285,38 @@ export function createServer({ port = 3000, host = '127.0.0.1', maxRooms = 500, 
         send(conn, { t: 'welcome', seat: free, reconnectToken: token, roomCode: target.code, resumed: false });
         handleEvents(target, res.events);
         log('joined', { room: target.code });
+        return;
+      }
+
+      case 'addBot': {
+        if (!room) return sendErr(conn, 'No room.');
+        if (conn.seat !== 0) return sendErr(conn, 'Only the host can add a bot.');
+        if (room.state.phase !== 'LOBBY') return sendErr(conn, 'Bots join in the lobby.');
+        if (room.state.seats[1]) return sendErr(conn, 'That seat is taken.');
+        const level = clampLevel(msg.level);
+        const profile = BOT_PROFILES[level];
+        const res = act(room.state, 1, { t: 'join', name: profile.name, avatar: profile.avatar, bot: true });
+        if (!res.ok) return sendErr(conn, res.error);
+        room.seats[1].bot = true;
+        room.bot = { seat: 1, level, timer: null, key: '' };
+        const ready = act(room.state, 1, { t: 'ready', ready: true }); // bots are always keen
+        handleEvents(room, [...res.events, ...(ready.ok ? ready.events : [])]);
+        log('bot_added', { room: room.code, level });
+        return;
+      }
+
+      case 'removeBot': {
+        if (!room) return sendErr(conn, 'No room.');
+        if (conn.seat !== 0) return sendErr(conn, 'Only the host can dismiss the bot.');
+        if (!room.bot) return sendErr(conn, 'No bot aboard.');
+        const phase = room.state.phase;
+        if (phase !== 'LOBBY' && phase !== 'GAMEOVER') return sendErr(conn, 'Finish the game first.');
+        clearTimeout(room.bot.timer);
+        room.bot = null;
+        room.seats[1].bot = false;
+        const res = act(room.state, 1, { t: 'vacate' });
+        if (res.ok) handleEvents(room, res.events);
+        log('bot_removed', { room: room.code });
         return;
       }
 

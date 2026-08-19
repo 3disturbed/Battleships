@@ -8,7 +8,7 @@
 <meta property="og:title" content="Battleships">
 <meta property="og:description" content="You've been challenged. Tap the link — no signup, game takes five minutes.">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🚢</text></svg>">
-<link rel="stylesheet" href="/css/game.css?v=2">
+<link rel="stylesheet" href="/css/game.css?v=3">
 </head>
 <body>
 
@@ -47,6 +47,7 @@
       <p class="hint">Send this link to a friend — they tap it and they're in.</p>
     </div>
     <div class="card seats" id="lobby-seats"></div>
+    <div class="card hidden" id="bot-card"></div>
     <div class="card" id="lobby-settings">
       <div class="setting-row" data-key="mode">
         <span class="setting-name">Mode</span>
@@ -145,6 +146,6 @@
 <button id="btn-mute" class="mute" title="Sound">🔊</button>
 <div id="conn-status" class="conn hidden">Reconnecting…</div>
 
-<script type="module" src="/js/app.js?v=2"></script>
+<script type="module" src="/js/app.js?v=3"></script>
 </body>
 </html>

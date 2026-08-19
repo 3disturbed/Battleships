@@ -24,6 +24,9 @@ sits waiting for "their turn".
 - **Juice everywhere** — shell arcs, water plumes, screen shake, hit streaks on
   fire, a "MUTUAL DESTRUCTION" screen for the 1-in-a-thousand double KO.
 - **Built for rematches** — one tap, best-of-3/5 series scoring, 3–6 minute games.
+- **Nobody around? Fight a bot** — five ranks from Deckhand (fires wild) to
+  Admiral (shows no mercy), added from the lobby in one tap. Bots see only
+  what a human sees — your decoy fools them too.
 
 ## Modes & settings (host chooses in the lobby)
 

@@ -1,6 +1,14 @@
-// Lobby screen: share link, seats, host settings, ready-up.
+// Lobby screen: share link, seats, host settings, ready-up, bot recruitment.
 
-import { sfx } from './sfx.js?v=2';
+import { sfx } from './sfx.js?v=3';
+
+const BOT_LEVELS = [
+  [1, '🐣', 'Deckhand', 'fires wild'],
+  [2, '🪝', 'Ensign', 'chases hits'],
+  [3, '🧭', 'Captain', 'hunts in patterns'],
+  [4, '🎖️', 'Commodore', 'reads the board'],
+  [5, '👑', 'Admiral', 'shows no mercy'],
+];
 
 export function createLobby({ els, send, toast }) {
   // els: shareLink, shareBtn, seats, settings, settingsHint, readyBtn
@@ -38,14 +46,51 @@ export function createLobby({ els, send, toast }) {
       const on = st.presence[i] === 'on';
       row.innerHTML = seat ? `
         <span class="face">${seat.avatar}</span>
-        <span class="who">${escText(seat.name)}${i === v.seat ? ' (you)' : ''}</span>
+        <span class="who">${escText(seat.name)}${i === v.seat ? ' (you)' : ''}${seat.bot ? ' <span class="bot-chip">BOT</span>' : ''}</span>
         <span class="state ${seat.ready ? 'ready' : ''}">${!on ? 'reconnecting…' : seat.ready ? 'READY ⚓' : 'not ready'}</span>`
         : `
         <span class="face">👀</span>
         <span class="who">Waiting for a challenger…</span>
         <span class="state">send the link!</span>`;
+      if (seat?.bot && v.seat === 0) {
+        const dismiss = document.createElement('button');
+        dismiss.className = 'btn small';
+        dismiss.textContent = 'Dismiss';
+        dismiss.addEventListener('click', () => { sfx.disarm(); send({ t: 'removeBot' }); });
+        row.appendChild(dismiss);
+      }
       els.seats.appendChild(row);
     });
+    renderBotPicker();
+  }
+
+  // No friend around? Recruit a bot — host only, empty seat only.
+  function renderBotPicker() {
+    const v = st.view;
+    const show = v.seat === 0 && !v.seats[1];
+    els.botCard.classList.toggle('hidden', !show);
+    if (!show) return;
+    if (!els.botCard.dataset.built) {
+      els.botCard.dataset.built = '1';
+      const title = document.createElement('div');
+      title.className = 'field-label';
+      title.textContent = '🤖 No friend around? Add a bot';
+      els.botCard.appendChild(title);
+      const grid = document.createElement('div');
+      grid.className = 'bot-grid';
+      for (const [level, glyph, rank, blurb] of BOT_LEVELS) {
+        const b = document.createElement('button');
+        b.className = 'bot-pick';
+        b.innerHTML = `<span class="ic">${glyph}</span><span class="nm">${rank}</span><span class="bl">${blurb}</span>`;
+        b.addEventListener('click', () => { sfx.arm(); send({ t: 'addBot', level }); });
+        grid.appendChild(b);
+      }
+      els.botCard.appendChild(grid);
+      const hint = document.createElement('p');
+      hint.className = 'hint';
+      hint.textContent = 'Bots ready up instantly — dismiss one any time to free the seat for a friend.';
+      els.botCard.appendChild(hint);
+    }
   }
 
   function renderSettings() {
