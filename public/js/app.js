@@ -1,12 +1,12 @@
 // Boot + screen routing + message dispatch. Every screen renders from the
 // latest server state; a refresh at any moment lands you where you were.
 
-import { createNet } from './net.js?v=4';
-import { sfx } from './sfx.js?v=4';
-import { Board } from './board.js?v=4';
-import { createPlacement } from './place.js?v=4';
-import { createBattle } from './battle.js?v=4';
-import { createLobby } from './lobby.js?v=4';
+import { createNet } from './net.js?v=5';
+import { sfx } from './sfx.js?v=5';
+import { Board } from './board.js?v=5';
+import { createPlacement } from './place.js?v=5';
+import { createBattle } from './battle.js?v=5';
+import { createLobby } from './lobby.js?v=5';
 
 const $ = (id) => document.getElementById(id);
 
@@ -23,6 +23,8 @@ let seat = -1;
 let joinTarget = null; // room code from the invite link
 let clockTimer = 0;
 let lastTickSecond = -1;
+let queuedJoin = null; // social invite that arrived mid-room; fired from resetToHome()
+let partyRoomPending = false; // we created a room for a party launch; report it on 'welcome'
 
 // ---- identity ----------------------------------------------------------------
 
@@ -112,6 +114,10 @@ const net = createNet({
         if (msg.reconnectToken) localStorage.setItem('bs_token', msg.reconnectToken);
         if (msg.roomCode) {
           history.replaceState(null, '', `#${msg.roomCode}`);
+          if (partyRoomPending && window.DGOverlay) { // party host: hand the room to the party
+            partyRoomPending = false;
+            DGOverlay.party.setRoom({ joinCode: msg.roomCode }).catch((e) => console.warn('[social] setRoom', e));
+          }
         } else if (!msg.resumed && localStorage.getItem('bs_token')) {
           // Dead token (room expired). Forget it; stay wherever we are.
           localStorage.removeItem('bs_token');
@@ -119,6 +125,7 @@ const net = createNet({
             state = null;
             show('home');
             toast('That game has ended — start a new one!', true);
+            publishPresence();
           }
         }
         if (msg.resumed) toast('Back aboard ⚓');
@@ -155,6 +162,7 @@ function applyState(msg) {
     showBanner('BATTLE STATIONS!', msg.view.settings.mode === 'blitz' ? 'Both fleets fire at once' : 'Classic rules');
   }
   render();
+  publishPresence();
 }
 
 function onResolve(msg) {
@@ -183,6 +191,12 @@ function resetToHome() {
   $('confirm-leave').classList.add('hidden');
   renderHome();
   show('home');
+  publishPresence();
+  if (queuedJoin) { // an invite arrived mid-battle: now we're free to follow it
+    const code = queuedJoin;
+    queuedJoin = null;
+    setTimeout(() => socialJoin({ joinCode: code }), 0);
+  }
 }
 
 function requestLeave() {
@@ -453,3 +467,79 @@ function escText(s) {
 renderHome();
 show('home');
 net.start({ name: name || 'Sailor', avatar });
+
+// ---- Darks Games social layer -------------------------------------------------------
+// Friends / party / invites via the DG overlay SDK (index.html loads dg-account +
+// dg-overlay before this module). Everything here is a no-op when the SDKs are
+// missing, so the game plays exactly as before offline or on a bare checkout.
+
+const ROOM_CODE_RE = /^[A-HJ-NP-Z2-9]{6}$/;
+
+async function initSocial() {
+  if (!window.DGAccount || !window.DGOverlay) return;
+  const user = await DGAccount.init({ game: 'battleships' });
+  if (user?.name && !localStorage.getItem('bs_name')) {
+    name = user.name.slice(0, 16);
+    $('name-input').value = name;
+  }
+  await DGOverlay.init({ game: 'battleships', accent: '#6bd5fa', joinHandler: socialJoin });
+  DGOverlay.on('party.arrived', onPartyArrived);
+  publishPresence();
+}
+
+// Derive presence from the latest server state; called on every transition.
+function publishPresence() {
+  if (!window.DGOverlay) return;
+  const v = state?.view;
+  if (!v) { DGOverlay.presence.set({ state: 'menu', detail: '', join: null }); return; }
+  const seated = v.seats.filter(Boolean).length; // a bot in seat 1 is a filled seat
+  const target = v.series?.target ?? 1;
+  DGOverlay.presence.set({
+    state: { LOBBY: 'lobby', PLACEMENT: 'placing', AIM: 'battle', GAMEOVER: 'game over' }[v.phase] ?? 'playing',
+    detail: `${v.settings.mode === 'blitz' ? 'Blitz' : 'Classic'} · ${v.settings.grid}×${v.settings.grid}${target > 1 ? ` · best of ${target}` : ''}`,
+    join: { joinCode: state.roomCode, joinable: v.phase === 'LOBBY' && seated < 2, players: seated, max: 2 },
+  });
+}
+
+// Overlay "Join" / accepted invite / party room. Join in place and return true;
+// return false only when we cannot (the overlay then navigates to the join URL).
+function socialJoin(j) {
+  const code = (j?.joinCode || location.hash.slice(1) || '').toUpperCase();
+  if (!ROOM_CODE_RE.test(code)) return false;
+  if (state?.roomCode === code) return true; // already aboard
+  if (state) { // in a room (lobby or battle): never yank the player out mid-match
+    queuedJoin = code;
+    toast('Invite saved — leave this battle to join it');
+    return true; // handled: nothing to navigate to
+  }
+  // Home screen: same path as an invite link. hashchange fires asynchronously,
+  // so set joinTarget directly before auto-pressing Join.
+  joinTarget = code;
+  location.hash = code;
+  renderHome();
+  if (name) $('btn-join').click(); // identity known → join straight away
+  return true;
+}
+
+// Party launch: the host creates a room the normal way and reports it on 'welcome'.
+function onPartyArrived({ isHost, room, party } = {}) {
+  if (!isHost || room) return;
+  if ((party?.members?.length ?? 0) > 2) {
+    toast('Battleships is two players — the party is too big', true);
+    return;
+  }
+  queuedJoin = null; // the party room supersedes any saved invite
+  if (state) { leaving = true; send({ t: 'leave' }); resetToHome(); }
+  partyRoomPending = true;
+  sfx.unlock(); sfx.arm();
+  saveIdentity();
+  leaving = false;
+  localStorage.removeItem('bs_token');
+  send({ t: 'create', settings: {} }); // same as #btn-create
+}
+
+{
+  const boot = () => initSocial().catch((e) => console.warn('[social]', e));
+  if (document.readyState === 'complete') boot();
+  else window.addEventListener('load', boot, { once: true });
+}

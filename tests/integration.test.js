@@ -295,3 +295,32 @@ test('wrong-version hello is refused with a refresh hint', async () => {
   assert.equal(e.code, 'version');
   await c.closed;
 });
+
+test('GET /api/rooms/:code reports occupancy for the social layer, 404 otherwise', async () => {
+  const http = `http://127.0.0.1:${srv.server.address().port}`;
+  const info = async (code) => {
+    const r = await fetch(`${http}/api/rooms/${code}`);
+    return { status: r.status, body: await r.json() };
+  };
+
+  assert.deepEqual(await info('ZZZZZZ'), { status: 404, body: { error: 'not_found' } });
+  assert.equal((await fetch(`${http}/api/rooms/toolongcode`)).status, 404); // shape miss → static 404
+
+  const a = new TestClient(url);
+  await a.open;
+  a.send({ t: 'hello', v: 1, name: 'Host', avatar: '⚓' });
+  await a.take('welcome');
+  a.send({ t: 'create', settings: {} });
+  const w = await a.take('welcome');
+
+  let r = await info(w.roomCode.toLowerCase()); // case-insensitive lookup
+  assert.equal(r.status, 200);
+  assert.deepEqual(r.body, { code: w.roomCode, players: 1, max: 2, phase: 'LOBBY', joinable: true });
+
+  a.send({ t: 'addBot', level: 1 }); // a bot fills seat 1
+  await a.take('state');
+  r = await info(w.roomCode);
+  assert.deepEqual(r.body, { code: w.roomCode, players: 2, max: 2, phase: 'LOBBY', joinable: false });
+
+  await a.close();
+});

@@ -53,6 +53,23 @@ export function createServer({ port = 3000, host = '127.0.0.1', maxRooms = 500, 
       res.end(JSON.stringify({ ok: true, rooms: registry.size, uptime: Math.round(process.uptime()) }));
       return;
     }
+    // Room info for the Darks Games social layer (catalog roomInfoUrl):
+    // unauthenticated, no names. A bot in seat 1 counts as an occupied seat.
+    const roomInfo = url.pathname.match(/^\/api\/rooms\/([A-Za-z0-9]{6})$/);
+    if (roomInfo) {
+      const room = registry.get(roomInfo[1].toUpperCase());
+      res.writeHead(room ? 200 : 404, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
+      res.end(JSON.stringify(room
+        ? {
+          code: room.code,
+          players: room.state.seats.filter(Boolean).length,
+          max: 2,
+          phase: room.state.phase,
+          joinable: room.state.phase === 'LOBBY' && room.state.seats.some((s) => !s),
+        }
+        : { error: 'not_found' }));
+      return;
+    }
     const rel = url.pathname === '/' ? 'index.html' : url.pathname.slice(1);
     const path = normalize(join(PUBLIC_DIR, rel));
     if (!path.startsWith(PUBLIC_DIR)) {

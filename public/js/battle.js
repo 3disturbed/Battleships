@@ -1,7 +1,7 @@
 // Battle screen: aim input, ability targeting, and the resolve choreography
 // that turns one server `resolve` message into a synchronized barrage.
 
-import { sfx } from './sfx.js?v=4';
+import { sfx } from './sfx.js?v=5';
 
 const ABILITY_DEFS = [
   { kind: 'recon', ship: 'carrier', icon: '🛩️', name: 'RECON', cost: 5, targets: 'theirs', hint: 'Tap enemy waters to overfly a 3×3 area' },

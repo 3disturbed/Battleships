@@ -1,6 +1,6 @@
 // Lobby screen: share link, seats, host settings, ready-up, bot recruitment.
 
-import { sfx } from './sfx.js?v=4';
+import { sfx } from './sfx.js?v=5';
 
 const BOT_LEVELS = [
   [1, '🐣', 'Deckhand', 'fires wild'],
